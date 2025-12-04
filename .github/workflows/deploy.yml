@@ -1,62 +1,106 @@
-name: CD - Deploy to Server
+name: CD - Docker Deploy
 
 on:
   release:
     types: [published, released]
+  workflow_dispatch:  # Для ручного запуска
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install dependencies (on GitHub runner)
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
     - name: Deploy to server via SSH
       uses: appleboy/ssh-action@v1.0.0
+      env:
+        REGISTRY: ghcr.io
+        IMAGE_NAME: ${{ github.repository }}
+        TAG: latest
+        APP_PORT: 8181
+        CONTAINER_NAME: catty-app
       with:
         host: course.prafdin.ru
-        port: 2476  # SSH порт через FRP (убедитесь, что он правильный!)
+        port: 2476
         username: kirillok01
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          echo "🚀 Starting deployment..."
+          echo "🚀 Starting Docker deployment..."
+          echo "📦 Image: $REGISTRY/$IMAGE_NAME:$TAG"
+          echo "🌐 Target: http://app.trofimov.course.prafdin.ru"
           
-          # Переходим в директорию приложения
-          cd /home/ubuntu/catty-reminders-app
+          # 1. Логинимся в GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
           
-          # Обновляем код из репозитория
-          git fetch origin
-          git checkout main
-          git pull origin main
+          # 2. Останавливаем и удаляем старый контейнер
+          echo "🛑 Stopping old container..."
+          docker stop $CONTAINER_NAME || true
+          docker rm $CONTAINER_NAME || true
           
-          # Обновляем зависимости Python
-          if [ -f "requirements.txt" ]; then
-            pip3 install -r requirements.txt --break-system-packages
-          fi
+          # 3. Удаляем старый образ (опционально, для экономии места)
+          docker rmi $REGISTRY/$IMAGE_NAME:$TAG || true
           
-          # Перезапускаем приложение через systemd
-          sudo systemctl daemon-reload
-          sudo systemctl restart catty-reminders
+          # 4. Тянем свежий образ из Registry
+          echo "📥 Pulling new image..."
+          docker pull $REGISTRY/$IMAGE_NAME:$TAG
           
-          # Проверяем статус службы
-          sudo systemctl status catty-app --no-pager
+          # 5. Запускаем новый контейнер с автоматическим перезапуском
+          echo "▶️ Starting new container..."
+          docker run -d \
+            --name $CONTAINER_NAME \
+            --restart unless-stopped \
+            -p $APP_PORT:$APP_PORT \
+            -e PORT=$APP_PORT \
+            -e PYTHONPATH=/app \
+            $REGISTRY/$IMAGE_NAME:$TAG
           
-          echo "✅ Deployment completed!"
-          echo "🌐 App is available at: http://app.trofimov.course.prafdin.ru"
+          # 6. Проверяем статус
+          echo "📊 Deployment status:"
+          sleep 3
+          docker ps | grep $CONTAINER_NAME
           
-    - name: Verify deployment
+          # 7. Проверяем логи
+          echo "📝 Container logs (tail):"
+          docker logs $CONTAINER_NAME --tail 20
+          
+          # 8. Проверяем здоровье приложения
+          echo "🏥 Health check..."
+          max_attempts=10
+          for i in $(seq 1 $max_attempts); do
+            if curl -s -f http://localhost:$APP_PORT > /dev/null; then
+              echo "✅ Application is healthy!"
+              break
+            fi
+            if [ $i -eq $max_attempts ]; then
+              echo "⚠️  Application not responding, but container is running"
+              break
+            fi
+            sleep 3
+            echo "⏳ Waiting for app to start ($i/$max_attempts)..."
+          done
+          
+          echo "🎉 Deployment completed successfully!"
+          echo "🔗 App URL: http://app.trofimov.course.prafdin.ru"
+    
+    - name: Verify public access
       run: |
-        echo "Waiting for app to start..."
+        echo "🔍 Verifying public access..."
         sleep 10
-        curl -f http://app.trofimov.course.prafdin.ru || echo "App might be starting..."
+        max_retries=5
+        for i in $(seq 1 $max_retries); do
+          if curl -s -f http://app.trofimov.course.prafdin.ru > /dev/null; then
+            echo "✅ Public access verified!"
+            echo "🌐 App is available at: http://app.trofimov.course.prafdin.ru"
+            break
+          else
+            echo "⚠️  Attempt $i/$max_retries failed"
+            if [ $i -eq $max_retries ]; then
+              echo "❌ Could not verify public access"
+              exit 1
+            fi
+            sleep 5
+          fi
+        done
