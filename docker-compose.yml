@@ -1,24 +1,47 @@
-version: '3.8'
-
 services:
-  db:
-    image: postgres:15-alpine
+  mysql:
+    image: mysql:8.0
+    container_name: catty-mysql
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: cattydb
-      POSTGRES_USER: cattyuser
-      POSTGRES_PASSWORD: cattypass
+      MYSQL_DATABASE: cattydb
+      MYSQL_USER: catty
+      MYSQL_PASSWORD: cattypass
+      MYSQL_ROOT_PASSWORD: rootpass
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - catty-network
 
   app:
     image: ghcr.io/kirysha74/catty-reminders-app:latest
+    container_name: catty-app
+    restart: unless-stopped
     depends_on:
-      - db
+      mysql:
+        condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://cattyuser:cattypass@db:5432/cattydb
+      MYSQL_HOST: mysql
+      MYSQL_DATABASE: cattydb
+      MYSQL_USER: catty
+      MYSQL_PASSWORD: cattypass
+      MYSQL_PORT: 3306
       PORT: 8181
     ports:
       - "8181:8181"
+    networks:
+      - catty-network
 
 volumes:
-  postgres_data:
+  mysql_data:
+
+networks:
+  catty-network:
+    driver: bridge

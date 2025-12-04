@@ -3,7 +3,12 @@ name: CD - Docker Compose Deploy
 on:
   release:
     types: [published, released]
-  workflow_dispatch:  # Для ручного запуска
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: latest)'
+        required: false
+        default: 'latest'
 
 jobs:
   deploy:
@@ -14,65 +19,104 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Deploy via SSH with Docker Compose
+    - name: Deploy with Docker Compose
       uses: appleboy/ssh-action@v1.0.0
       env:
         REGISTRY: ghcr.io
         IMAGE_NAME: ${{ github.repository }}
+        TAG: ${{ inputs.tag || 'latest' }}
       with:
         host: course.prafdin.ru
         port: 2476
         username: kirillok01
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          echo "🚀 Starting Docker Compose deployment..."
+          echo "🚀 Deploying with Docker Compose..."
+          echo "📦 Image: $REGISTRY/$IMAGE_NAME:$TAG"
           
-          # Логинимся в GitHub Container Registry
+          # Login to GitHub Container Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
           
-          # Создаём docker-compose.yml на сервере
+          # Go to app directory
+          cd /home/ubuntu/catty-reminders-app || cd /home/runner/work/catty-reminders-app/catty-reminders-app
+          
+          # Create docker-compose.yml
           cat > docker-compose.yml << 'EOF'
-          version: '3.8'
-          
           services:
-            db:
-              image: postgres:15-alpine
+            mysql:
+              image: mysql:8.0
+              container_name: catty-mysql
+              restart: unless-stopped
               environment:
-                POSTGRES_DB: cattydb
-                POSTGRES_USER: cattyuser
-                POSTGRES_PASSWORD: cattypass
+                MYSQL_DATABASE: cattydb
+                MYSQL_USER: catty
+                MYSQL_PASSWORD: cattypass
+                MYSQL_ROOT_PASSWORD: rootpass
               volumes:
-                - postgres_data:/var/lib/postgresql/data
-          
+                - mysql_data:/var/lib/mysql
+              healthcheck:
+                test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+              networks:
+                - catty-network
+
             app:
-              image: $REGISTRY/$IMAGE_NAME:latest
+              image: $REGISTRY/$IMAGE_NAME:$TAG
+              container_name: catty-app
+              restart: unless-stopped
               depends_on:
-                - db
+                mysql:
+                  condition: service_healthy
               environment:
-                DATABASE_URL: postgresql://cattyuser:cattypass@db:5432/cattydb
+                MYSQL_HOST: mysql
+                MYSQL_DATABASE: cattydb
+                MYSQL_USER: catty
+                MYSQL_PASSWORD: cattypass
+                MYSQL_PORT: 3306
                 PORT: 8181
               ports:
                 - "8181:8181"
-          
+              networks:
+                - catty-network
+
           volumes:
-            postgres_data:
+            mysql_data:
+
+          networks:
+            catty-network:
+              driver: bridge
           EOF
           
-          # Останавливаем старый стек
-          docker compose down || true
+          # Stop old stack
+          docker compose down --remove-orphans || true
           
-          # Запускаем новый стек
+          # Start new stack
           docker compose up -d --pull always
           
-          # Проверяем
+          # Check status
           sleep 5
           docker compose ps
+          docker compose logs --tail=10 app
           
           echo "✅ Docker Compose deployment completed!"
-          echo "🌐 App: http://app.trofimov.course.prafdin.ru"
+          echo "🌐 App URL: http://app.trofimov.course.prafdin.ru"
     
     - name: Verify deployment
       run: |
-        echo "Waiting for app to start..."
+        echo "🔍 Verifying public access..."
         sleep 15
-        curl -f http://app.trofimov.course.prafdin.ru || echo "App might be starting..."
+        max_retries=5
+        for i in $(seq 1 $max_retries); do
+          if curl -s -f http://app.trofimov.course.prafdin.ru > /dev/null; then
+            echo "✅ Public access verified!"
+            echo "🌐 App is available at: http://app.trofimov.course.prafdin.ru"
+            exit 0
+          else
+            echo "⚠️ Attempt $i/$max_retries failed"
+            sleep 5
+          fi
+        done
+        echo "❌ Could not verify public access"
+        exit 1
