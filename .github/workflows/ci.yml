@@ -2,9 +2,9 @@ name: CI - Tests and Docker Build
 
 on:
   push:
-    branches: [ "main", "multicontainers" ]
+    branches: [ "main", "docker-assignment" ]
   pull_request:
-    branches: [ "main", "multicontainers" ]
+    branches: [ "main", "docker-assignment" ]
 
 jobs:
   test:
@@ -36,13 +36,18 @@ jobs:
     needs: test  # Запускаем только если тесты прошли
     if: github.event_name == 'push'  # Собираем только при пуше, не при PR
     
+    permissions:
+      contents: read
+      packages: write  # Разрешение на запись в Container Registry
+      
     steps:
-    - uses: actions/checkout@v4
-    
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
-    - name: Login to GitHub Container Registry
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
@@ -54,15 +59,16 @@ jobs:
         docker run --rm -i hadolint/hadolint < Dockerfile || echo "Hadolint found issues"
       continue-on-error: true
     
-    - name: Extract metadata
+    - name: Extract metadata for Docker tags
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ghcr.io/${{ github.repository }}
         tags: |
-          type=ref,event=branch
-          type=sha,prefix={{branch}}-
-          latest
+          type=ref,event=branch  # тег по имени ветки
+          type=sha,prefix={{branch}}-  # тег с хешем коммита
+          type=raw,value=latest,enable={{is_default_branch}}  # latest только для main
+          type=raw,value=stable,enable={{is_default_branch}}  # stable только для main
     
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -73,3 +79,11 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        
+    - name: Verify pushed images
+      run: |
+        echo "✅ Images pushed to GitHub Container Registry:"
+        echo "${{ steps.meta.outputs.tags }}"
+        echo ""
+        echo "📦 Check images at:"
+        echo "https://github.com/users/${{ github.repository_owner }}/packages/container/package/catty-reminders-app"
