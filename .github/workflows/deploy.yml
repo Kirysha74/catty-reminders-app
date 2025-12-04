@@ -23,7 +23,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.0
       env:
         REGISTRY: ghcr.io
-        IMAGE_NAME: ${{ github.repository|lower }}
+        IMAGE_NAME: kirysha74/catty-reminders-app
         TAG: ${{ inputs.tag || 'latest' }}
       with:
         host: course.prafdin.ru
