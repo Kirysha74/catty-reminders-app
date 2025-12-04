@@ -14,7 +14,7 @@ It uses:
 
 ## Installing dependencies
 
-You will need a recent version of Python to run this app.
+You will need a recent version of Python to run this app.1
 To install project dependencies:
 
 ```
