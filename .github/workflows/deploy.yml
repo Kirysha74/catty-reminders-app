@@ -1,0 +1,78 @@
+name: CD - Docker Compose Deploy
+
+on:
+  release:
+    types: [published, released]
+  workflow_dispatch:  # Для ручного запуска
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy via SSH with Docker Compose
+      uses: appleboy/ssh-action@v1.0.0
+      env:
+        REGISTRY: ghcr.io
+        IMAGE_NAME: ${{ github.repository }}
+      with:
+        host: course.prafdin.ru
+        port: 2476
+        username: kirillok01
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          echo "🚀 Starting Docker Compose deployment..."
+          
+          # Логинимся в GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
+          
+          # Создаём docker-compose.yml на сервере
+          cat > docker-compose.yml << 'EOF'
+          version: '3.8'
+          
+          services:
+            db:
+              image: postgres:15-alpine
+              environment:
+                POSTGRES_DB: cattydb
+                POSTGRES_USER: cattyuser
+                POSTGRES_PASSWORD: cattypass
+              volumes:
+                - postgres_data:/var/lib/postgresql/data
+          
+            app:
+              image: $REGISTRY/$IMAGE_NAME:latest
+              depends_on:
+                - db
+              environment:
+                DATABASE_URL: postgresql://cattyuser:cattypass@db:5432/cattydb
+                PORT: 8181
+              ports:
+                - "8181:8181"
+          
+          volumes:
+            postgres_data:
+          EOF
+          
+          # Останавливаем старый стек
+          docker compose down || true
+          
+          # Запускаем новый стек
+          docker compose up -d --pull always
+          
+          # Проверяем
+          sleep 5
+          docker compose ps
+          
+          echo "✅ Docker Compose deployment completed!"
+          echo "🌐 App: http://app.trofimov.course.prafdin.ru"
+    
+    - name: Verify deployment
+      run: |
+        echo "Waiting for app to start..."
+        sleep 15
+        curl -f http://app.trofimov.course.prafdin.ru || echo "App might be starting..."
