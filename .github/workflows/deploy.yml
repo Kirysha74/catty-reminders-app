@@ -23,7 +23,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.0
       env:
         REGISTRY: ghcr.io
-        IMAGE_NAME: ${{ github.repository }}
+        IMAGE_NAME: ${{ github.repository|lower }}
         TAG: ${{ inputs.tag || 'latest' }}
       with:
         host: course.prafdin.ru
