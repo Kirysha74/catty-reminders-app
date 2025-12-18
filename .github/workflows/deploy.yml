@@ -1,8 +1,9 @@
-name: CD - Deploy to Server
+name: CD - Deploy Application
 
 on:
   release:
-    types: [published, released]
+    types: [published]
+  workflow_dispatch:  # Для ручного запуска
 
 jobs:
   deploy:
@@ -11,52 +12,34 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install dependencies (on GitHub runner)
+    
+    - name: Set up SSH
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -p 2476 course.prafdin.ru >> ~/.ssh/known_hosts
+    
     - name: Deploy to server via SSH
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: course.prafdin.ru
-        port: 2476  # SSH порт через FRP (убедитесь, что он правильный!)
-        username: kirillok01
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          echo "🚀 Starting deployment..."
-          
-          # Переходим в директорию приложения
-          cd /home/ubuntu/catty-reminders-app
-          
-          # Обновляем код из репозитория
-          git fetch origin
-          git checkout main
-          git pull origin main
-          
-          # Обновляем зависимости Python
-          if [ -f "requirements.txt" ]; then
-            pip3 install -r requirements.txt --break-system-packages
-          fi
-          
-          # Перезапускаем приложение через systemd
-          sudo systemctl daemon-reload
-          sudo systemctl restart catty-reminders
-          
-          # Проверяем статус службы
-          sudo systemctl status catty-app --no-pager
-          
+      run: |
+        echo "🚀 Deploying application via SSH port 2476..."
+        ssh -p 2476 nopressure@course.prafdin.ru << 'ENDSSH'
+          cd /home/nopressure/my-app
+          echo "Current directory: \$(pwd)"
+          echo "Pulling latest changes..."
+          git pull origin github-actions
+          echo "Installing dependencies..."
+          pip3 install -r requirements.txt --break-system-packages
+          echo "Stopping previous application..."
+          pkill -f uvicorn || true
+          echo "Starting new application..."
+          nohup /home/nopressure/.local/bin/uvicorn app.main:app --host 0.0.0.0 --port 8181 > app.log 2>&1 &
           echo "✅ Deployment completed!"
-          echo "🌐 App is available at: http://app.trofimov.course.prafdin.ru"
-          
+        ENDSSH
+    
     - name: Verify deployment
       run: |
-        echo "Waiting for app to start..."
-        sleep 10
-        curl -f http://app.trofimov.course.prafdin.ru || echo "App might be starting..."
+        echo "🚀 Application deployed successfully!"
+        echo "📅 Deployment time: $(date)"
+        echo "🌐 Application URL: http://app.trofimov.course.prafdin.ru"
+        echo "🔧 SSH port used: 2476"
