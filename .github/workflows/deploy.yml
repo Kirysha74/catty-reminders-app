@@ -23,7 +23,7 @@ jobs:
     - name: Deploy to server via SSH
       run: |
         echo "🚀 Deploying application via SSH port 2476..."
-        ssh -p 2476 nopressure@course.prafdin.ru << 'ENDSSH'
+        ssh -p 2476 kirillok01@course.prafdin.ru << 'ENDSSH'
           cd /home/nopressure/my-app
           echo "Current directory: \$(pwd)"
           echo "Pulling latest changes..."
