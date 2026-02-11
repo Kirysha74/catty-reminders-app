@@ -1,131 +1,45 @@
-![Catty Logo](static/img/logos/catty-100px.png)
+name: CD - Deploy Application
 
-# Catty: The Reminders App
+on:
+  release:
+    types: [published]
+  workflow_dispatch:  # Для ручного запуска
 
-*Catty* is a small demo web app for tracking reminders.
-It uses:
-
-* [Python](https://www.python.org/) as the main programming language
-* [FastAPI](https://fastapi.tiangolo.com/) for the backend
-* [HTMX](https://htmx.org/) 1.8.6 for handling dynamic interactions (instead of raw JavaScript)
-* [Jinja templates](https://jinja.palletsprojects.com/en/3.1.x/) with HTML and CSS for the frontend
-* [TinyDB](https://tinydb.readthedocs.io/en/latest/index.html) for the database
-* [Playwright](https://playwright.dev/python/) and [pytest](https://docs.pytest.org/) for testing
-
-## Installing dependencies
-
-You will need a recent version of Python to run this app.1
-To install project dependencies:
-
-```
-pip install -r requirements.txt
-```
-
-It is recommended to install dependencies into a [virtual environment](https://docs.python.org/3/library/venv.html).
-
-
-## Running the app
-
-To run the app:
-
-```
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8181
-```
-
-Then, open your browser to [`http://127.0.0.1:8181`](http://127.0.0.1:8181) to load the app.
-
-
-
-## Logging into the app
-
-The [`config.json`](config.json) file declares the users for the app.
-You may use any configured user credentials, or change them to your liking.
-
-## Setting the database path
-
-The app uses TinyDB, which stores the database as a JSON file.
-The default database filepath is `reminder_db.json`.
-You may change this path in [`config.json`](config.json).
-If you change the filepath, the app will automatically create a new, empty database.
-
-
-## Using the app
-
-Catty is a reminders app.
-After you log in, you can create reminder lists.
-
-![Catty login](static/img/readme/catty-login.png)
-
-Each reminder list appears on the left,
-and the items in the list appear on the right.
-You may add, delete, or edit lists and items.
-You may also strike out completed items.
-
-![Catty reminders](static/img/readme/catty-reminders.png)
-
-
-## Running tests
-
-The app includes comprehensive tests using pytest and Playwright. Before running tests, make sure the app is running on `http://127.0.0.1:8181`.
-
-First, install test dependencies if you haven't already:
-
-```bash
-pip install -r requirements.txt
-```
-
-Install Playwright browsers for UI testing:
-
-```bash
-playwright install --with-deps chromium
-```
-
-Then configure test settings in `inputs.json`:
-
-```json
-{
-  "base_url": "http://127.0.0.1:8181",
-  "users": [
-    {
-      "username": "heisenberg",
-      "password": "P@ssw0rd"
-    },
-    {
-      "username": "tester", 
-      "password": "foobar123"
-    }
-  ]
-}
-```
-
-Run all tests:
-
-```bash
-python3 -m pytest
-```
-
-Run specific test types:
-
-```bash
-# Unit tests only
-python3 -m pytest tests/test_unit.py
-
-# API tests only  
-python3 -m pytest tests/test_api.py
-
-# UI tests only
-python3 -m pytest -s -v --browser chromium tests/test_ui.py
-```
-
-Run tests with verbose output:
-
-```bash
-python3 -m pytest -v --browser chromium tests
-```
-
-## Reading the docs
-
-To read the API docs, open the following pages:
-
-* [`/docs`](http://127.0.0.1:8181/docs) for classic OpenAPI docs
-* [`/redoc`](http://127.0.0.1:8181/redoc) for more modern ReDoc docs
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -p 2476 course.prafdin.ru >> ~/.ssh/known_hosts
+    
+    - name: Deploy to server via SSH
+      run: |
+        echo "🚀 Deploying application via SSH port 2476..."
+        ssh -p 2476 nopressure@course.prafdin.ru << 'ENDSSH'
+          cd /home/nopressure/my-app
+          echo "Current directory: \$(pwd)"
+          echo "Pulling latest changes..."
+          git pull origin github-actions
+          echo "Installing dependencies..."
+          pip3 install -r requirements.txt --break-system-packages
+          echo "Stopping previous application..."
+          pkill -f uvicorn || true
+          echo "Starting new application..."
+          nohup /home/nopressure/.local/bin/uvicorn app.main:app --host 0.0.0.0 --port 8181 > app.log 2>&1 &
+          echo "✅ Deployment completed!"
+        ENDSSH
+    
+    - name: Verify deployment
+      run: |
+        echo "🚀 Application deployed successfully!"
+        echo "📅 Deployment time: $(date)"
+        echo "🌐 Application URL: http://app.trofimov.course.prafdin.ru"
+        echo "🔧 SSH port used: 2476"
