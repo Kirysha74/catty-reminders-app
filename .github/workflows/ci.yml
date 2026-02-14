@@ -10,7 +10,7 @@ on:
       - 'Dockerfile'
       - 'app/**'
       - 'requirements.txt'
-      - '.github/workflows/docker-cd.yml'
+      - '.github/workflows/deploy.yml'
 
 jobs:
   deploy:
