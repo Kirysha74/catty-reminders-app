@@ -3,7 +3,7 @@ name: CD - Deploy Application
 on:
   release:
     types: [published]
-  workflow_dispatch:  # Для ручного запуска
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -25,13 +25,28 @@ jobs:
         echo "🚀 Deploying application via SSH port 2476..."
         ssh -p 2476 kirillok01@course.prafdin.ru << 'ENDSSH'
           cd /home/ubuntu/catty-reminders-app
-          echo "Current directory: \$(pwd)"
-          echo "Pulling latest changes..."
-          git pull origin github-actions
-          echo "Installing dependencies..."
-          pip3 install -r requirements.txt --break-system-packages
-          sudo
+          echo "Current directory: $(pwd)"
+          
+          echo "📥 Pulling latest code from GitHub..."
+          git pull origin lab3
+          
+          echo "🐳 Deploying with Docker..."
+          # Останавливаем и удаляем старый контейнер
+          docker stop catty-app || true
+          docker rm catty-app || true
+          
+          # Собираем новый образ (если нужно)
+          docker build -t catty-reminders:latest .
+          
+          # Запускаем новый контейнер
+          docker run -d \
+            --name catty-app \
+            --restart unless-stopped \
+            -p 8181:8181 \
+            catty-reminders:latest
+          
           echo "✅ Deployment completed!"
+          docker ps | grep catty-app
         ENDSSH
     
     - name: Verify deployment
@@ -39,4 +54,3 @@ jobs:
         echo "🚀 Application deployed successfully!"
         echo "📅 Deployment time: $(date)"
         echo "🌐 Application URL: http://app.trofimov.course.prafdin.ru"
-        echo "🔧 SSH port used: 2476"
