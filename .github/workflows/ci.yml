@@ -45,7 +45,7 @@ jobs:
           
           # Тянем образ
           echo "⬇️ Pulling ghcr.io/${{ github.repository }}:lab3"
-          docker pull ghcr.io/${{ github.repository }}:lab3 || docker pull ghcr.io/${{ github.repository }}:latest
+          docker pull ghcr.io/kirysha74/catty-reminders-app:lab3 || docker pull ghcr.io/kirysha74/catty-reminders-app:latest
           
           echo "🛑 Stopping old container..."
           docker stop catty-app || true
@@ -57,7 +57,7 @@ jobs:
             --restart unless-stopped \
             -p 8181:8181 \
             -e PORT=8181 \
-            ghcr.io/${{ github.repository }}:lab3
+            ghcr.io/kirysha74/catty-reminders-app:lab3
           
           echo "⏳ Waiting for app to start..."
           sleep 5
