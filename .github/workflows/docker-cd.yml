@@ -3,15 +3,6 @@ name: 🚀 Lab 3 - Docker Deploy
 on:
   release:
     types: [published]
-  workflow_dispatch:
-  push:
-    branches: [ lab3 ]
-    paths:
-      - 'Dockerfile'
-      - 'app/**'
-      - 'requirements.txt'
-      - '.github/workflows/docker-cd.yml'
-      - 'templates/**'
 
 jobs:
   deploy:
