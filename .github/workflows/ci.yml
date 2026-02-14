@@ -11,7 +11,8 @@ on:
       - 'app/**'
       - 'requirements.txt'
       - '.github/workflows/deploy.yml'
-      - 'templates'
+      - '.github/workflows/ci.yml'
+      - 'templates/**'
 
 jobs:
   deploy:
