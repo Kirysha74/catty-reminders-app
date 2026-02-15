@@ -33,5 +33,5 @@ jobs:
         context: .
         push: true
         tags: |
-          ghcr.io/${{ github.repository }}:lab4
-          ghcr.io/${{ github.repository }}:${{ github.sha }}
+          ghcr.io/kirysha74/catty-reminders-app::lab4
+          ghcr.io/kirysha74/catty-reminders-app::${{ github.sha }}
