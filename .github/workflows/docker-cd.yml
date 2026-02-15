@@ -34,7 +34,7 @@ jobs:
           cd /home/ubuntu/catty-reminders-app
           
           # Обновляем код
-          git pull origin lab4
+          git pull origin multicontainers
           
           # Останавливаем старый стек
           docker compose down
