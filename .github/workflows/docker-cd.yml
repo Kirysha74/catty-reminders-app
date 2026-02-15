@@ -1,4 +1,4 @@
-name: 🚀 CD - Deploy with Docker Compose
+name: CD
 
 on:
   release:
@@ -13,37 +13,39 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v2
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: course.prafdin.ru
-        port: 2476
-        username: kirillok01
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          echo "=== 🐳 Deploying with Docker Compose ==="
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
+        chmod 600 ~/.ssh/vm_key
+        
+    - name: Deploy with Docker Compose to VM
+      run: |
+        echo "Starting Docker Compose deployment..."
+        ssh -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=15 \
+            -i ~/.ssh/vm_key \
+            -p 2435 \
+            masha@course.prafdin.ru "
+          echo 'Creating necessary directories...'          
           
-          # Переходим в директорию проекта
-          cd /home/ubuntu/catty-reminders-app
+          echo 'Logging in to GHCR...'
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Обновляем код
-          git pull origin multicontainers
+          echo 'Pulling latest images...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml pull
           
-          # Останавливаем старый стек
-          docker compose down
+          echo 'Stopping and removing old containers...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml down
           
-          # Запускаем новый стек
-          docker compose up -d
+          echo 'Starting new containers with Docker Compose...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml up -d
           
-          # Проверяем статус
-          docker compose ps
+          echo 'Cleaning up...'
+          docker image prune -f
           
-          echo "✅ Deployment complete!"
-          echo "📡 App: http://app.trofimov.course.prafdin.ru"
+          echo 'Docker Compose deployment completed!'
+          echo 'Containers status:'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml ps
+          echo 'Application: http://app.kirysha74.course.prafdin.ru'
+        "

@@ -1,45 +1,32 @@
+name: catty-reminders-lab4
+
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: catty-mysql
-    restart: unless-stopped
+  app:
+    image: ghcr.io/kirysha74/catty-reminders-app:lab4
+    ports:
+      - "8181:8181"
     environment:
-      MYSQL_DATABASE: cattydb
-      MYSQL_USER: catty
-      MYSQL_PASSWORD: cattypass
-      MYSQL_ROOT_PASSWORD: rootpass
+      DATABASE_URL: mysql://root:mypass@db:3306/catty_reminders
+      SECRET_KEY: ${SECRET_KEY:-default-secret-key}
+    depends_on:
+      db:
+        condition: service_healthy    # ← требует healthcheck
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: mypass
+      MYSQL_DATABASE: catty_reminders
     volumes:
       - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+    restart: unless-stopped
+    healthcheck:                      # ← добавляем
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pmypass"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - catty-network
-
-  app:
-    image: $REGISTRY/$IMAGE_NAME:$TAG
-    container_name: catty-app
-    restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      MYSQL_HOST: mysql
-      MYSQL_DATABASE: cattydb
-      MYSQL_USER: catty
-      MYSQL_PASSWORD: cattypass
-      MYSQL_PORT: 3306
-      PORT: 8181
-    ports:
-      - "8181:8181"
-    networks:
-      - catty-network
+      start_period: 30s
 
 volumes:
   mysql_data:
-
-networks:
-  catty-network:
-    driver: bridge
