@@ -1,17 +1,9 @@
-name: 🚀 Lab 3 - Docker Deploy
+name: 🚀 CD - Deploy with Docker Compose
 
 on:
   release:
     types: [published]
   workflow_dispatch:
-  push:
-    branches: [ lab3 ]
-    paths:
-      - 'Dockerfile'
-      - 'app/**'
-      - 'requirements.txt'
-      - '.github/workflows/docker-cd.yml'
-      - 'templates/**'
 
 jobs:
   deploy:
@@ -21,14 +13,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Debug info
-      run: |
-        echo "🔧 Lab 3 - Docker Deployment"
-        echo "📦 Repository: ${{ github.repository }}"
-        echo "🔑 Actor: ${{ github.actor }}"
-        echo "🌐 Event: ${{ github.event_name }}"
-        echo "📡 Branch: ${{ github.ref_name }}"
-    
     - name: Deploy via SSH
       uses: appleboy/ssh-action@v1.0.0
       with:
@@ -37,37 +21,25 @@ jobs:
         username: kirillok01
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          echo "=== 🐳 Lab 3: Docker Deployment from GHCR ==="
-          echo "📦 Pulling image from GitHub Container Registry..."
+          echo "=== 🐳 Deploying with Docker Compose ==="
           
-          # Логинимся в GitHub Container Registry
+          # Переходим в директорию проекта
+          cd /home/ubuntu/catty-reminders-app
+          
+          # Обновляем код
+          git pull origin lab4
+          
+          # Логинимся в GHCR
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Тянем образ с тегом lab3 (ВАЖНО: используем lab3, а не latest)
-          echo "⬇️ Pulling ghcr.io/${{ github.repository }}:lab3"
-          docker pull ghcr.io/${{ github.repository }}:lab3
+          # Останавливаем старый стек
+          docker compose down
           
-          echo "🛑 Stopping old container..."
-          docker stop catty-app || true
-          docker rm catty-app || true
+          # Запускаем новый стек
+          docker compose up -d
           
-          echo "▶️ Starting new container with lab3 image..."
-          docker run -d \
-            --name catty-app \
-            --restart unless-stopped \
-            -p 8181:8181 \
-            -e PORT=8181 \
-            ghcr.io/${{ github.repository }}:lab3
+          # Проверяем статус
+          docker compose ps
           
-          echo "⏳ Waiting for app to start..."
-          sleep 5
-          
-          echo "📊 Container status:"
-          docker ps | grep catty-app
-          
-          echo "📝 Container logs:"
-          docker logs catty-app --tail 20
-          
-          echo ""
-          echo "✅ Docker container deployed successfully!"
-          echo "📡 Application: http://app.trofimov.course.prafdin.ru"
+          echo "✅ Deployment complete!"
+          echo "📡 App: http://app.trofimov.course.prafdin.ru"
