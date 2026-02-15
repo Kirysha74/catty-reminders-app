@@ -1,32 +1,52 @@
 name: catty-reminders-lab4
 
 services:
-  app:
-    image: ghcr.io/kirysha74/catty-reminders-app:lab4
-    ports:
-      - "8181:8181"
-    environment:
-      DATABASE_URL: mysql://root:mypass@db:3306/catty_reminders
-      SECRET_KEY: ${SECRET_KEY:-default-secret-key}
-    depends_on:
-      db:
-        condition: service_healthy    # ← требует healthcheck
-    restart: unless-stopped
-
   db:
     image: mysql:8.0
+    container_name: catty-db
     environment:
       MYSQL_ROOT_PASSWORD: mypass
       MYSQL_DATABASE: catty_reminders
+      MYSQL_USER: catty
+      MYSQL_PASSWORD: cattypassword
     volumes:
       - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"  # для отладки, можно убрать
     restart: unless-stopped
-    healthcheck:                      # ← добавляем
+    healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pmypass"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
 
+  app:
+    image: ghcr.io/kirysha74/catty-reminders-app:lab4
+    container_name: catty-app
+    build:  # для локальной сборки, но в CI будем использовать image
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8181:8181"
+    environment:
+      # Для подключения к БД (код использует db_config из config.json)
+      # Но также передаем параметры для гибкости
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: mypass
+      DB_NAME: catty_reminders
+      SECRET_KEY: ${SECRET_KEY:-Cats-are-awesome!}
+      PORT: 8181
+    volumes:
+      # Монтируем config.json для конфигурации
+      - ./config.json:/app/config.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   mysql_data:
+    name: catty-mysql-data

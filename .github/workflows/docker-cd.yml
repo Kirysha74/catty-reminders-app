@@ -1,9 +1,11 @@
-name: CD
+name: 🚀 CD - Deploy with Docker Compose
 
 on:
   release:
     types: [published]
   workflow_dispatch:
+  push:
+    branches: [ lab4, multicontainers ]  # для тестирования
 
 jobs:
   deploy:
@@ -12,40 +14,67 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Setup SSH key
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
-        chmod 600 ~/.ssh/vm_key
-        
-    - name: Deploy with Docker Compose to VM
-      run: |
-        echo "Starting Docker Compose deployment..."
-        ssh -o StrictHostKeyChecking=no \
-            -o ConnectTimeout=15 \
-            -i ~/.ssh/vm_key \
-            -p 2435 \
-            masha@course.prafdin.ru "
-          echo 'Creating necessary directories...'          
+    
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: course.prafdin.ru
+        port: 2476
+        username: kirillok01
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          echo "=== 🐳 Deploying with Docker Compose ==="
           
-          echo 'Logging in to GHCR...'
-          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          # Переходим в директорию проекта
+          cd /home/ubuntu/catty-reminders-app || exit 1
           
-          echo 'Pulling latest images...'
-          docker compose -f ~/catty-reminders-app/docker-compose.yml pull
+          # Сохраняем важные файлы (на случай если их нет в репозитории)
+          if [ -f config.json ]; then
+            cp config.json /tmp/config.json.bak
+          fi
           
-          echo 'Stopping and removing old containers...'
-          docker compose -f ~/catty-reminders-app/docker-compose.yml down
+          # Обновляем код (принудительно)
+          git fetch origin
+          git reset --hard origin/${{ github.ref_name }}
           
-          echo 'Starting new containers with Docker Compose...'
-          docker compose -f ~/catty-reminders-app/docker-compose.yml up -d
+          # Восстанавливаем config.json если нужно
+          if [ -f /tmp/config.json.bak ] && [ ! -f config.json ]; then
+            cp /tmp/config.json.bak config.json
+          fi
           
-          echo 'Cleaning up...'
-          docker image prune -f
+          # Убеждаемся что config.json существует
+          if [ ! -f config.json ]; then
+            echo "❌ config.json not found!"
+            exit 1
+          fi
           
-          echo 'Docker Compose deployment completed!'
-          echo 'Containers status:'
-          docker compose -f ~/catty-reminders-app/docker-compose.yml ps
-          echo 'Application: http://app.kirysha74.course.prafdin.ru'
-        "
+          # Логинимся в GHCR для pull образа
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Останавливаем старый стек (сохраняем данные)
+          docker compose down
+          
+          # Загружаем свежий образ
+          docker compose pull app
+          
+          # Запускаем новый стек
+          docker compose up -d
+          
+          # Проверяем статус
+          echo "📊 Container status:"
+          docker compose ps
+          
+          # Проверяем логи приложения
+          echo "📝 App logs:"
+          sleep 5
+          docker compose logs app --tail 20
+          
+          echo "✅ Deployment complete!"
+          echo "📡 App: http://app.trofimov.course.prafdin.ru"
