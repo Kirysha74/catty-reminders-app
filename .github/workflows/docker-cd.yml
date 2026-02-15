@@ -12,6 +12,13 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Deploy via SSH
       uses: appleboy/ssh-action@v1.0.0
@@ -28,9 +35,6 @@ jobs:
           
           # Обновляем код
           git pull origin lab4
-          
-          # Логинимся в GHCR
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
           # Останавливаем старый стек
           docker compose down
