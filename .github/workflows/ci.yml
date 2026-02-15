@@ -1,65 +1,37 @@
-name: CI - Tests and Docker Build
+name: CI - Build and Push Docker Image
 
 on:
   push:
-    branches: [ "main", "multicontainers" ]
-  pull_request:
-    branches: [ "main", "multicontainers" ]
+    branches: [ lab4 ]
+    paths:
+      - 'Dockerfile'
+      - 'app/**'
+      - 'requirements.txt'
+      - '**'
 
 jobs:
-  test:
+  build-and-push:
     runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: Run unit tests
-      run: |
-        if [ -f "tests/test_unit.py" ]; then
-          python -m pytest tests/test_unit.py -v
-        else
-          echo "Unit tests not found, skipping."
-        fi
-
-  docker-build:
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name == 'push'
-    
     permissions:
       contents: read
       packages: write
-      
-    steps:
-    - uses: actions/checkout@v4
     
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Build and push Docker image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v4
       with:
         context: .
         push: true
         tags: |
-          ghcr.io/kirysha74/catty-reminders-app:latest
+          ghcr.io/kirysha74/catty-reminders-app:lab4
           ghcr.io/kirysha74/catty-reminders-app:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max

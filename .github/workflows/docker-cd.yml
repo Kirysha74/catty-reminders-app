@@ -1,0 +1,49 @@
+name: 🚀 CD - Deploy with Docker Compose
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: course.prafdin.ru
+        port: 2476
+        username: kirillok01
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          echo "=== 🐳 Deploying with Docker Compose ==="
+          
+          # Переходим в директорию проекта
+          cd /home/ubuntu/catty-reminders-app
+          
+          # Обновляем код
+          git pull origin lab4
+          
+          # Останавливаем старый стек
+          docker compose down
+          
+          # Запускаем новый стек
+          docker compose up -d
+          
+          # Проверяем статус
+          docker compose ps
+          
+          echo "✅ Deployment complete!"
+          echo "📡 App: http://app.trofimov.course.prafdin.ru"
