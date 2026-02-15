@@ -2,7 +2,7 @@ name: CI - Build and Push Docker Image
 
 on:
   push:
-    branches: [ lab3 ]
+    branches: [ lab4 ]
     paths:
       - 'Dockerfile'
       - 'app/**'
@@ -32,5 +32,5 @@ jobs:
         context: .
         push: true
         tags: |
-          ghcr.io/${{ github.repository }}:lab3
+          ghcr.io/${{ github.repository }}:lab4
           ghcr.io/${{ github.repository }}:${{ github.sha }}
