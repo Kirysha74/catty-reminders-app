@@ -2,7 +2,7 @@ name: CI - Build and Push Docker Image
 
 on:
   push:
-    branches: [ lab4 ]
+    branches: [ multicontainers ]
     paths:
       - 'Dockerfile'
       - 'app/**'
