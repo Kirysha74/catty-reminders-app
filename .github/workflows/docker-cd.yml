@@ -3,9 +3,6 @@ name: 🚀 CD - Deploy with Docker Compose
 on:
   release:
     types: [published]
-  workflow_dispatch:
-  push:
-    branches: [ lab4, multicontainers ]  # для тестирования
 
 jobs:
   deploy:
