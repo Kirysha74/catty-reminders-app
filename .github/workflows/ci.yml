@@ -1,24 +1,21 @@
-name: CI - Build and Push Docker Image
+name: Lab 4 - Docker Compose CI
 
 on:
   push:
-    branches: [ lab4, multicontainers ]
-    paths:
-      - 'Dockerfile'
-      - 'app/**'
-      - 'requirements.txt'
-      - '.github/workflows/**'
+    branches: [multicontainers] 
+  pull_request:
+    branches: [multicontainers]  
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
     
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v3
@@ -27,18 +24,26 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix=lab4-,format=short
+    
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: true
-        tags: |
-          ghcr.io/kirysha74/catty-reminders-app:lab4
-          ghcr.io/kirysha74/catty-reminders-app:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
     
-    - name: Verify image
+    - name: Verify files for Lab 4
       run: |
-        echo "✅ Image built and pushed with tag lab4"
-        echo "📦 Image: ghcr.io/${{ github.repository }}:lab4"
+        echo " CI для Lab 4 запущен"
+        echo "Проверяем необходимые файлы:"
+        ls -la docker-compose.yml Dockerfile requirements.txt
+        echo "Файлы для Docker Compose проверены"

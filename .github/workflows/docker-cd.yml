@@ -1,66 +1,51 @@
-# .github/workflows/deploy.yml
-name: CD - Docker Compose Deploy
+name: CD
 
 on:
   release:
-    types: [published, released]
+    types: [published]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Image tag (default: latest)'
-        required: false
-        default: 'latest'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Deploy with Docker Compose
-      uses: appleboy/ssh-action@v1.0.0
-      env:
-        REGISTRY: ghcr.io
-        IMAGE_NAME: kirysha74/catty-reminders-app
-        TAG: ${{ inputs.tag || 'latest' }}
-      with:
-        host: course.prafdin.ru
-        port: 2476
-        username: kirillok01
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          echo "🚀 Deploying with Docker Compose..."
-          echo "📦 Image: $REGISTRY/$IMAGE_NAME:$TAG"
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/vm_key
+        chmod 600 ~/.ssh/vm_key
+        
+    - name: Deploy with Docker Compose to VM
+      run: |
+        echo "Starting Docker Compose deployment..."
+        ssh -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=15 \
+            -i ~/.ssh/vm_key \
+            -p 2476 \
+            kirillok01@course.prafdin.ru "
+          echo 'Creating necessary directories...'          
           
-          # Логинимся в GHCR для возможности pull образа
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
+          echo 'Logging in to GHCR...'
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Переходим в директорию проекта
-          cd /home/ubuntu/catty-reminders-app || cd /home/runner/work/catty-reminders-app/catty-reminders-app
+          echo 'Pulling latest images...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml pull
           
-          # Обновляем код (на всякий случай, чтобы получить свежий docker-compose.yml)
-          git fetch origin
-          git reset --hard origin/${{ github.ref_name }}
+          echo 'Stopping and removing old containers...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml down
           
-          # Останавливаем старый стек, сохраняя данные (volumes)
-          docker compose down
+          echo 'Starting new containers with Docker Compose...'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml up -d
           
-          # Загружаем свежий образ приложения
-          docker compose pull app
+          echo 'Cleaning up...'
+          docker image prune -f
           
-          # Запускаем новый стек в фоне
-          docker compose up -d
-          
-          # Проверяем статус
-          echo "📊 Container status:"
-          docker compose ps
-          
-          # Проверяем логи приложения
-          echo "📝 App logs:"
-          sleep 5
-          docker compose logs app --tail 20
-          
-          echo "✅ Deployment completed!"
+          echo 'Docker Compose deployment completed!'
+          echo 'Containers status:'
+          docker compose -f ~/catty-reminders-app/docker-compose.yml ps
+          echo 'Application: http://app.trofimov.course.prafdin.ru'
+        "
