@@ -2,7 +2,7 @@ name: catty-reminders-lab4
 
 services:
   app:
-    image: ghcr.io/kirysha74/catty-reminders-app:lab4
+    image: ghcr.io/kirysha74/catty-reminders-app:multicontainers
     ports:
       - "8181:8181"
     environment:
