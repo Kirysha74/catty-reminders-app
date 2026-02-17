@@ -33,19 +33,19 @@ jobs:
           echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           
           echo 'Pulling latest images...'
-          docker compose -f ~/catty-reminders-app/docker-compose.yml pull
+          docker compose -f ~/ubuntu/catty-reminders-app/docker-compose.yml pull
           
           echo 'Stopping and removing old containers...'
-          docker compose -f ~/catty-reminders-app/docker-compose.yml down
+          docker compose -f ~/ubuntu/catty-reminders-app/docker-compose.yml down
           
           echo 'Starting new containers with Docker Compose...'
-          docker compose -f ~/catty-reminders-app/docker-compose.yml up -d
+          docker compose -f ~/ubuntu/catty-reminders-app/docker-compose.yml up -d
           
           echo 'Cleaning up...'
           docker image prune -f
           
           echo 'Docker Compose deployment completed!'
           echo 'Containers status:'
-          docker compose -f ~/catty-reminders-app/docker-compose.yml ps
+          docker compose -f ~/ubuntu/catty-reminders-app/docker-compose.yml ps
           echo 'Application: http://app.trofimov.course.prafdin.ru'
         "
