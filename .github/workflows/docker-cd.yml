@@ -1,67 +1,57 @@
-name: 🚀 CD - Deploy with Docker Compose
+# .github/workflows/deploy.yml
+name: CD - Docker Compose Deploy
 
 on:
   release:
-    types: [published]
+    types: [published, released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: latest)'
+        required: false
+        default: 'latest'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Deploy via SSH
+      
+    - name: Deploy with Docker Compose
       uses: appleboy/ssh-action@v1.0.0
+      env:
+        REGISTRY: ghcr.io
+        IMAGE_NAME: kirysha74/catty-reminders-app
+        TAG: ${{ inputs.tag || 'latest' }}
       with:
         host: course.prafdin.ru
         port: 2476
         username: kirillok01
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          echo "=== 🐳 Deploying with Docker Compose ==="
+          echo "🚀 Deploying with Docker Compose..."
+          echo "📦 Image: $REGISTRY/$IMAGE_NAME:$TAG"
+          
+          # Логинимся в GHCR для возможности pull образа
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
           
           # Переходим в директорию проекта
-          cd /home/ubuntu/catty-reminders-app || exit 1
+          cd /home/ubuntu/catty-reminders-app || cd /home/runner/work/catty-reminders-app/catty-reminders-app
           
-          # Сохраняем важные файлы (на случай если их нет в репозитории)
-          if [ -f config.json ]; then
-            cp config.json /tmp/config.json.bak
-          fi
-          
-          # Обновляем код (принудительно)
+          # Обновляем код (на всякий случай, чтобы получить свежий docker-compose.yml)
           git fetch origin
           git reset --hard origin/${{ github.ref_name }}
           
-          # Восстанавливаем config.json если нужно
-          if [ -f /tmp/config.json.bak ] && [ ! -f config.json ]; then
-            cp /tmp/config.json.bak config.json
-          fi
-          
-          # Убеждаемся что config.json существует
-          if [ ! -f config.json ]; then
-            echo "❌ config.json not found!"
-            exit 1
-          fi
-          
-          # Логинимся в GHCR для pull образа
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-          # Останавливаем старый стек (сохраняем данные)
+          # Останавливаем старый стек, сохраняя данные (volumes)
           docker compose down
           
-          # Загружаем свежий образ
+          # Загружаем свежий образ приложения
           docker compose pull app
           
-          # Запускаем новый стек
+          # Запускаем новый стек в фоне
           docker compose up -d
           
           # Проверяем статус
@@ -73,5 +63,4 @@ jobs:
           sleep 5
           docker compose logs app --tail 20
           
-          echo "✅ Deployment complete!"
-          echo "📡 App: http://app.trofimov.course.prafdin.ru"
+          echo "✅ Deployment completed!"

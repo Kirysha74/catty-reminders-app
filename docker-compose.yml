@@ -1,3 +1,4 @@
+# docker-compose.yml
 name: catty-reminders-lab4
 
 services:
@@ -12,7 +13,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
-      - "3306:3306"  # для отладки, можно убрать
+      - "3306:3306"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pmypass"]
@@ -24,14 +25,12 @@ services:
   app:
     image: ghcr.io/kirysha74/catty-reminders-app:lab4
     container_name: catty-app
-    build:  # для локальной сборки, но в CI будем использовать image
-      context: .
-      dockerfile: Dockerfile
+    # build:  # для локальной сборки, но в CI будем использовать image
+    #   context: .
+    #   dockerfile: Dockerfile
     ports:
       - "8181:8181"
     environment:
-      # Для подключения к БД (код использует db_config из config.json)
-      # Но также передаем параметры для гибкости
       DB_HOST: db
       DB_PORT: 3306
       DB_USER: root
